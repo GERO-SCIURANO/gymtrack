@@ -558,9 +558,13 @@ function greetingEmoji(){const h=new Date().getHours();return h<12?'🌅':h<18?'
 function goTo(id){
   document.querySelectorAll('.screen').forEach(s=>{s.classList.remove('active');s.style.display='';});
   const el=document.getElementById(id);
-  el.classList.add('active');el.style.display='block';
+  if(!el)return;
+  el.classList.add('active');
+  if(id==='screen-login') el.style.display='flex';
+  else el.style.display='block';
   document.querySelector('.app').scrollTop=0;
   if(id==='screen-historial')renderHistorial();
+  if(id==='screen-config')initConfig();
 }
 
 function goToHome(){
@@ -610,12 +614,14 @@ async function doSignup(){
   if(pass.length<6){err.textContent='La contraseña debe tener al menos 6 caracteres';return;}
   const {data,error}=await sb.auth.signUp({email,password:pass,options:{data:{nombre,role:loginRole}}});
   if(error){err.textContent=error.message;return;}
-  // crear perfil
   if(data.user){
-    await sb.from('profiles').upsert({id:data.user.id,nombre,role:loginRole});
+    await sb.from('profiles').upsert({id:data.user.id,nombre,role:loginRole,email});
+    // Auto-login after signup
+    await sb.auth.signInWithPassword({email,password:pass});
+  } else {
+    showNotif('¡Cuenta creada! Ya podés ingresar ✅');
+    showSignin();
   }
-  showNotif('¡Cuenta creada! Ya podés ingresar ✅');
-  showSignin();
 }
 
 async function doLogout(){
@@ -967,9 +973,7 @@ function renderProgreso(){
   cont.innerHTML=html||`<div class="empty"><i class="ti ti-chart-line"></i><p>Completá más sesiones del mismo ejercicio.</p></div>`;
 }
 
-// goTo override para config
-const _origGoTo=goTo;
-function goTo(id){_origGoTo(id);if(id==='screen-config')initConfig();}
+// goTo handles config init inline
 
 // SERVICE WORKER
 if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('/sw.js').catch(()=>{}));
