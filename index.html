@@ -240,15 +240,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Segoe UI',sa
     </div>
     <div id="login-form-wrap">
       <div id="login-view-signin">
-        <div class="field"><label>Email</label><input id="login-email" type="email" placeholder="tu@email.com" onkeydown="if(event.key==='Enter')doLogin()"></div>
+        <div class="field"><label>Nombre de usuario</label><input id="login-email" type="text" placeholder="Ej: gero123" autocomplete="off" onkeydown="if(event.key==='Enter')doLogin()"></div>
         <div class="field"><label>Contraseña</label><input id="login-pass" type="password" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()"></div>
         <div class="login-error" id="login-error"></div>
         <button class="btn-login" id="btn-do-login" onclick="doLogin()">Entrar</button>
         <div class="login-switch">¿No tenés cuenta? <span onclick="showSignup()">Registrate</span></div>
       </div>
       <div id="login-view-signup" style="display:none">
-        <div class="field"><label>Nombre</label><input id="signup-nombre" type="text" placeholder="Tu nombre"></div>
-        <div class="field"><label>Email</label><input id="signup-email" type="email" placeholder="tu@email.com"></div>
+        <div class="field"><label>Nombre de usuario</label><input id="signup-nombre" type="text" placeholder="Ej: gero123" autocomplete="off" onkeydown="if(event.key==='Enter')doSignup()"></div>
         <div class="field"><label>Contraseña</label><input id="signup-pass" type="password" placeholder="Mínimo 6 caracteres" onkeydown="if(event.key==='Enter')doSignup()"></div>
         <div class="login-error" id="signup-error"></div>
         <button class="btn-login" id="btn-do-signup" onclick="doSignup()">Crear cuenta</button>
@@ -594,30 +593,43 @@ function showSignin(){
   document.getElementById('login-view-signin').style.display='block';
 }
 
+function usernameToEmail(u){return u.toLowerCase().replace(/[^a-z0-9]/g,'')+'.gymtrack@gymtrack.app';}
 async function doLogin(){
-  const email=document.getElementById('login-email').value.trim();
+  const username=document.getElementById('login-email').value.trim();
   const pass=document.getElementById('login-pass').value;
   const err=document.getElementById('login-error');
   err.textContent='';
-  if(!email||!pass){err.textContent='Completá email y contraseña';return;}
+  if(!username||!pass){err.textContent='Completá usuario y contraseña';return;}
+  const email=usernameToEmail(username);
   const {data,error}=await sb.auth.signInWithPassword({email,password:pass});
-  if(error){err.textContent='Email o contraseña incorrectos';return;}
+  if(error){err.textContent='Usuario o contraseña incorrectos';return;}
 }
 
 async function doSignup(){
   const nombre=document.getElementById('signup-nombre').value.trim();
-  const email=document.getElementById('signup-email').value.trim();
   const pass=document.getElementById('signup-pass').value;
   const err=document.getElementById('signup-error');
   err.textContent='';
-  if(!nombre||!email||!pass){err.textContent='Completá todos los campos';return;}
+  if(!nombre||!pass){err.textContent='Completá todos los campos';return;}
   if(pass.length<6){err.textContent='La contraseña debe tener al menos 6 caracteres';return;}
+  if(!/^[a-zA-Z0-9_]{3,20}$/.test(nombre)){err.textContent='El usuario solo puede tener letras, números y _ (3-20 caracteres)';return;}
+  const email=usernameToEmail(nombre);
   const {data,error}=await sb.auth.signUp({email,password:pass,options:{data:{nombre,role:loginRole}}});
-  if(error){err.textContent=error.message;return;}
+  if(error){
+    if(error.message.includes('already registered')||error.message.includes('User already')){
+      err.textContent='Ese nombre de usuario ya existe, elegí otro';
+    } else {
+      err.textContent=error.message;
+    }
+    return;
+  }
   if(data.user){
     await sb.from('profiles').upsert({id:data.user.id,nombre,role:loginRole,email});
-    // Auto-login after signup
-    await sb.auth.signInWithPassword({email,password:pass});
+    const {error:loginErr}=await sb.auth.signInWithPassword({email,password:pass});
+    if(loginErr){
+      showNotif('¡Cuenta creada! Ya podés ingresar ✅');
+      showSignin();
+    }
   } else {
     showNotif('¡Cuenta creada! Ya podés ingresar ✅');
     showSignin();
